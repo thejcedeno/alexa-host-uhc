@@ -1,10 +1,10 @@
 
-from dataclasses import dataclass
 from typing import List
+from dataclasses import asdict, dataclass
+from enum import Enum
 
 import subprocess
-
-from enum import Enum
+import json
 
 
 class InstanceType(Enum):
@@ -18,6 +18,13 @@ class InstanceType(Enum):
 class TerrainType(Enum):
     VANILLA = 'vanilla'
     RUN = 'run'
+    
+# Define a custom JSON encoder that handles Enum objects
+class EnumEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Enum):
+            return obj.value
+        return super().default(obj)
 
 
 @dataclass
@@ -61,6 +68,8 @@ class ServerCreationRequest:
     container_image: str
     resources: ResourceAllocationRequest
     requestor: Requestor
+    # The game config of the server
+    game_config: GameConfig
 
 
 @dataclass
@@ -88,8 +97,9 @@ def create_infraestructure(req: ServerCreationRequest) -> ServerCreationResponse
 
     # Run a bash command to terraform deploy
     terraform_cmd = ['terraform', 'apply', '-var',
-                     f'vm_name={vm_name}', '-var', f'region={region}', '-var', f'plan={plan}', '-var', 'os_id=387']
-    
+                     f'vm_name={vm_name}', '-var', f'region={region}', '-var', f'plan={plan}', '-var', 'os_id=387',
+                     '-var', f'game_metadata={to_json(req.game_config)}']
+
     print(f'Running command: {terraform_cmd}')
 
     # Run the Terraform command
@@ -114,5 +124,12 @@ def get_optimal_plan(req: ServerCreationRequest) -> str:
     return 'vc2-1c-1gb'
 
 
-create_infraestructure(ServerCreationRequest("doesn't matter now lol xd.", ResourceAllocationRequest('e085d739-25e3-4990-a2ec-98e84f5e03d9',
-                       1024, 1, InstanceType.SHARED), Requestor('5de6e184-af8d-498a-bbde-055e50653316', 'jcedeno', 'jcedeno@jcedeno.us')))
+def to_json(obj) -> str:
+    """ Converts an object to json."""
+    return json.dumps(obj, cls=EnumEncoder)
+
+
+create_infraestructure(
+    ServerCreationRequest("doesn't matter now lol xd.", ResourceAllocationRequest('e085d739-25e3-4990-a2ec-98e84f5e03d9', 1024, 1, InstanceType.SHARED),
+                          Requestor('5de6e184-af8d-498a-bbde-055e50653316', 'jcedeno', 'jcedeno@jcedeno.us'),
+                          GameConfig('random', TerrainType.VANILLA, 'unassigned', ['cutclean', 'timebomb'], True, False)))
